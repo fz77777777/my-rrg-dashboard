@@ -20,12 +20,23 @@ def calculate_rrg(tickers, benchmark, period, interval, window=14, tail_length=5
         start_date = end_date - timedelta(days=1000)
 
     all_tickers = tickers + [benchmark]
-    data = yf.download(all_tickers, start=start_date, end=end_date, interval=interval, progress=False)['Close']
-    data = data.ffill().bfill()
+    data = yf.download(all_tickers, start=start_date, end=end_date, interval=interval, progress=False)
+    
+    if data.empty or 'Close' not in data.columns:
+        return pd.DataFrame(), pd.DataFrame()
+        
+    data = data['Close'].ffill().bfill()
+    
+    if data.shape[0] < (window * 2):
+        return pd.DataFrame(), pd.DataFrame()
     
     rs_ratios = pd.DataFrame()
     for t in tickers:
-        rs_ratios[t] = (data[t] / data[benchmark]) * 100
+        if t in data.columns and benchmark in data.columns:
+            rs_ratios[t] = (data[t] / data[benchmark]) * 100
+        
+    if rs_ratios.empty:
+        return pd.DataFrame(), pd.DataFrame()
         
     rs_ratio_smoothed = rs_ratios.ewm(span=window, adjust=False).mean()
     mean_rs = rs_ratio_smoothed.rolling(window=window).mean()
@@ -44,6 +55,12 @@ def calculate_rrg(tickers, benchmark, period, interval, window=14, tail_length=5
     return jdk_rs_ratio, jdk_rs_momentum
 
 def plot_rrg(jdk_rs_ratio, jdk_rs_momentum, timeframe_title):
+    if jdk_rs_ratio.empty or jdk_rs_momentum.empty:
+        fig = go.Figure()
+        fig.add_annotation(text="No live data available for this timeframe right now (Market Closed).", showarrow=False, font=dict(size=16))
+        fig.update_layout(title=f"Timeframe: {timeframe_title}", height=400)
+        return fig
+        
     fig = go.Figure()
     max_val = max(102, max(jdk_rs_ratio.max().max(), jdk_rs_momentum.max().max()))
     min_val = min(98, min(jdk_rs_ratio.min().min(), jdk_rs_momentum.min().min()))
@@ -61,16 +78,16 @@ def plot_rrg(jdk_rs_ratio, jdk_rs_momentum, timeframe_title):
         x_data = jdk_rs_ratio[col].values
         y_data = jdk_rs_momentum[col].values
         
-        fig.add_trace(go.Scatter(
-            x=x_data, y=y_data, mode='lines+markers',
-            name=col.replace('.NS', ''), line=dict(width=2),
-            marker=dict(size=[6]*(len(x_data)-1) + [12], symbol=['circle']*(len(x_data)-1) + ['arrow-bar-up'])
-        ))
-        
-        fig.add_annotation(
-            x=x_data[-1], y=y_data[-1], text=col.replace('.NS', '').replace('CNX', ''),
-            showarrow=True, arrowhead=1, ax=20, ay=-20
-        )
+        if len(x_data) > 0 and len(y_data) > 0:
+            fig.add_trace(go.Scatter(
+                x=x_data, y=y_data, mode='lines+markers',
+                name=col.replace('^', ''), line=dict(width=2),
+                marker=dict(size=[6]*(len(x_data)-1) + [12], symbol=['circle']*(len(x_data)-1) + ['arrow-bar-up'])
+            ))
+            fig.add_annotation(
+                x=x_data[-1], y=y_data[-1], text=col.replace('^', '').replace('CNX', ''),
+                showarrow=True, arrowhead=1, ax=20, ay=-20
+            )
         
     fig.add_shape(type="line", x0=100, y0=100-padding, x1=100, y1=100+padding, line=dict(color="black", width=1, dash="dash"))
     fig.add_shape(type="line", x0=100-padding, y0=100, x1=100+padding, y1=100, line=dict(color="black", width=1, dash="dash"))
@@ -95,6 +112,7 @@ st.sidebar.header("Settings")
 tail = st.sidebar.slider("Tail Length (History)", min_value=3, max_value=10, value=5)
 
 if st.sidebar.button("🔄 Refresh Data"):
+    st.clear_cache()
     st.rerun()
 
 tab1, tab2, tab3, tab4 = st.tabs(["Hourly", "Daily", "Weekly", "Monthly"])
