@@ -9,33 +9,41 @@ st.set_page_config(page_title="Indian Stock Market - RRG Dashboard", layout="wid
 st.title("📊 Sector Rotation - Relative Rotation Graph (RRG)")
 
 def calculate_rrg(tickers, benchmark, period, interval, window=14, tail_length=5):
-    end_date = datetime.now()
-    if period == '1mo':
-        start_date = end_date - timedelta(days=60)
-    elif period == '3mo':
-        start_date = end_date - timedelta(days=120)
-    elif period == '1y':
-        start_date = end_date - timedelta(days=450)
+    end_date = datetime.now() + timedelta(days=1)
+    
+    # Keeping periods long enough so history is always available even on holidays
+    if interval == '60m':
+        start_date = end_date - timedelta(days=30)
+    elif interval == '1d':
+        start_date = end_date - timedelta(days=150)
+    elif interval == '1wk':
+        start_date = end_date - timedelta(days=500)
     else:
-        start_date = end_date - timedelta(days=1000)
+        start_date = end_date - timedelta(days=1500)
 
     all_tickers = tickers + [benchmark]
-    data = yf.download(all_tickers, start=start_date, end=end_date, interval=interval, progress=False)
     
-    if data.empty or 'Close' not in data.columns:
+    # Fetch data
+    data = yf.download(all_tickers, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'), interval=interval, progress=False)
+    
+    if data.empty:
         return pd.DataFrame(), pd.DataFrame()
         
-    data = data['Close'].ffill().bfill()
+    if 'Close' in data.columns:
+        data = data['Close']
+        
+    data = data.ffill().bfill()
     
-    if data.shape[0] < (window * 2):
+    # Filter tickers that actually have data
+    valid_tickers = [t for t in tickers if t in data.columns and not data[t].isna().all()]
+    if not valid_tickers or benchmark not in data.columns:
         return pd.DataFrame(), pd.DataFrame()
     
     rs_ratios = pd.DataFrame()
-    for t in tickers:
-        if t in data.columns and benchmark in data.columns:
-            rs_ratios[t] = (data[t] / data[benchmark]) * 100
+    for t in valid_tickers:
+        rs_ratios[t] = (data[t] / data[benchmark]) * 100
         
-    if rs_ratios.empty:
+    if rs_ratios.shape[0] < (window * 2):
         return pd.DataFrame(), pd.DataFrame()
         
     rs_ratio_smoothed = rs_ratios.ewm(span=window, adjust=False).mean()
@@ -57,7 +65,7 @@ def calculate_rrg(tickers, benchmark, period, interval, window=14, tail_length=5
 def plot_rrg(jdk_rs_ratio, jdk_rs_momentum, timeframe_title):
     if jdk_rs_ratio.empty or jdk_rs_momentum.empty:
         fig = go.Figure()
-        fig.add_annotation(text="No live data available for this timeframe right now (Market Closed).", showarrow=False, font=dict(size=16))
+        fig.add_annotation(text="No historical data found for this specific timeframe right now.", showarrow=False, font=dict(size=16))
         fig.update_layout(title=f"Timeframe: {timeframe_title}", height=400)
         return fig
         
@@ -78,16 +86,17 @@ def plot_rrg(jdk_rs_ratio, jdk_rs_momentum, timeframe_title):
         x_data = jdk_rs_ratio[col].values
         y_data = jdk_rs_momentum[col].values
         
-        if len(x_data) > 0 and len(y_data) > 0:
-            fig.add_trace(go.Scatter(
-                x=x_data, y=y_data, mode='lines+markers',
-                name=col.replace('^', ''), line=dict(width=2),
-                marker=dict(size=[6]*(len(x_data)-1) + [12], symbol=['circle']*(len(x_data)-1) + ['arrow-bar-up'])
-            ))
-            fig.add_annotation(
-                x=x_data[-1], y=y_data[-1], text=col.replace('^', '').replace('CNX', ''),
-                showarrow=True, arrowhead=1, ax=20, ay=-20
-            )
+        display_name = col.replace('.NS', '')
+        
+        fig.add_trace(go.Scatter(
+            x=x_data, y=y_data, mode='lines+markers',
+            name=display_name, line=dict(width=2),
+            marker=dict(size=[6]*(len(x_data)-1) + [12], symbol=['circle']*(len(x_data)-1) + ['arrow-bar-up'])
+        ))
+        fig.add_annotation(
+            x=x_data[-1], y=y_data[-1], text=display_name,
+            showarrow=True, arrowhead=1, ax=20, ay=-20
+        )
         
     fig.add_shape(type="line", x0=100, y0=100-padding, x1=100, y1=100+padding, line=dict(color="black", width=1, dash="dash"))
     fig.add_shape(type="line", x0=100-padding, y0=100, x1=100+padding, y1=100, line=dict(color="black", width=1, dash="dash"))
@@ -105,7 +114,8 @@ def plot_rrg(jdk_rs_ratio, jdk_rs_momentum, timeframe_title):
     )
     return fig
 
-sectors = ['^CNXIT', '^CNXBANK', '^CNXFMCG', '^CNXAUTO', '^CNXINFRA', '^CNXPHARMA', '^CNXREALTY', '^CNXMETAL']
+# Clean Yahoo Finance symbols for Indian Sectors
+sectors = ['NIFTYIT.NS', 'NIFTYBANK.NS', 'NIFTYFMCG.NS', 'NIFTYAUTO.NS', 'NIFTYINFRA.NS', 'NIFTYPHARMA.NS', 'NIFTYREALTY.NS', 'NIFTYMETAL.NS']
 benchmark_idx = '^NSEI'
 
 st.sidebar.header("Settings")
@@ -134,5 +144,7 @@ with tab3:
 
 with tab4:
     with st.spinner("Fetching Monthly Data..."):
+        rm, mm = calculate_rrg(sectors, benchmark_idx, 'max', '1mo', tail_length=tail)
+        st.plotly_chart(plot_rrg(rm, mm, "Monthly"), use_container_width=True)
         rm, mm = calculate_rrg(sectors, benchmark_idx, 'max', '1mo', tail_length=tail)
         st.plotly_chart(plot_rrg(rm, mm, "Monthly"), use_container_width=True)
