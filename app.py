@@ -8,23 +8,21 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="Indian Stock Market - RRG Dashboard", layout="wide")
 st.title("📊 Sector Rotation - Relative Rotation Graph (RRG)")
 
-def calculate_rrg(tickers, benchmark, period, interval, window=14, tail_length=5):
-    end_date = datetime.now() + timedelta(days=1)
-    
-    # Keeping periods long enough so history is always available even on holidays
+def calculate_rrg(tickers, benchmark, interval, window=14, tail_length=5):
+    # Determine lookback based on interval to ensure enough history for calculation
     if interval == '60m':
-        start_date = end_date - timedelta(days=30)
+        period = '1mo'
     elif interval == '1d':
-        start_date = end_date - timedelta(days=150)
+        period = '6mo'
     elif interval == '1wk':
-        start_date = end_date - timedelta(days=500)
+        period = '2y'
     else:
-        start_date = end_date - timedelta(days=1500)
+        period = 'max'
 
     all_tickers = tickers + [benchmark]
     
-    # Fetch data
-    data = yf.download(all_tickers, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'), interval=interval, progress=False)
+    # Using 'period' instead of hardcoded dates solves holiday/weekend data missing errors
+    data = yf.download(all_tickers, period=period, interval=interval, progress=False)
     
     if data.empty:
         return pd.DataFrame(), pd.DataFrame()
@@ -34,7 +32,6 @@ def calculate_rrg(tickers, benchmark, period, interval, window=14, tail_length=5
         
     data = data.ffill().bfill()
     
-    # Filter tickers that actually have data
     valid_tickers = [t for t in tickers if t in data.columns and not data[t].isna().all()]
     if not valid_tickers or benchmark not in data.columns:
         return pd.DataFrame(), pd.DataFrame()
@@ -65,7 +62,7 @@ def calculate_rrg(tickers, benchmark, period, interval, window=14, tail_length=5
 def plot_rrg(jdk_rs_ratio, jdk_rs_momentum, timeframe_title):
     if jdk_rs_ratio.empty or jdk_rs_momentum.empty:
         fig = go.Figure()
-        fig.add_annotation(text="No historical data found for this specific timeframe right now.", showarrow=False, font=dict(size=16))
+        fig.add_annotation(text="No data found for this specific timeframe right now.", showarrow=False, font=dict(size=16))
         fig.update_layout(title=f"Timeframe: {timeframe_title}", height=400)
         return fig
         
@@ -114,7 +111,6 @@ def plot_rrg(jdk_rs_ratio, jdk_rs_momentum, timeframe_title):
     )
     return fig
 
-# Clean Yahoo Finance symbols for Indian Sectors
 sectors = ['NIFTYIT.NS', 'NIFTYBANK.NS', 'NIFTYFMCG.NS', 'NIFTYAUTO.NS', 'NIFTYINFRA.NS', 'NIFTYPHARMA.NS', 'NIFTYREALTY.NS', 'NIFTYMETAL.NS']
 benchmark_idx = '^NSEI'
 
@@ -129,22 +125,22 @@ tab1, tab2, tab3, tab4 = st.tabs(["Hourly", "Daily", "Weekly", "Monthly"])
 
 with tab1:
     with st.spinner("Fetching Hourly Data..."):
-        rh, mh = calculate_rrg(sectors, benchmark_idx, '1mo', '60m', tail_length=tail)
+        rh, mh = calculate_rrg(sectors, benchmark_idx, '60m', tail_length=tail)
         st.plotly_chart(plot_rrg(rh, mh, "Hourly"), use_container_width=True)
 
 with tab2:
     with st.spinner("Fetching Daily Data..."):
-        rd, md = calculate_rrg(sectors, benchmark_idx, '3mo', '1d', tail_length=tail)
+        rd, md = calculate_rrg(sectors, benchmark_idx, '1d', tail_length=tail)
         st.plotly_chart(plot_rrg(rd, md, "Daily"), use_container_width=True)
 
 with tab3:
     with st.spinner("Fetching Weekly Data..."):
-        rw, mw = calculate_rrg(sectors, benchmark_idx, '1y', '1wk', tail_length=tail)
+        rw, mw = calculate_rrg(sectors, benchmark_idx, '1wk', tail_length=tail)
         st.plotly_chart(plot_rrg(rw, mw, "Weekly"), use_container_width=True)
 
 with tab4:
     with st.spinner("Fetching Monthly Data..."):
-        rm, mm = calculate_rrg(sectors, benchmark_idx, 'max', '1mo', tail_length=tail)
+        rm, mm = calculate_rrg(sectors, benchmark_idx, '1mo', tail_length=tail)
         st.plotly_chart(plot_rrg(rm, mm, "Monthly"), use_container_width=True)
-        rm, mm = calculate_rrg(sectors, benchmark_idx, 'max', '1mo', tail_length=tail)
+
         st.plotly_chart(plot_rrg(rm, mm, "Monthly"), use_container_width=True)
