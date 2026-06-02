@@ -22,7 +22,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🇮🇳 Indian Stock Market Sector Rotation (NSE RRG Dashboard)")
-st.caption("🛡️ 30-Min Intraday Engine Enabled | Benchmark: NIFTY 50 (^NSEI) | Auto-Refresh: 30 Min")
+st.caption("🛡️ Verified Tickers Engine | Benchmark: NIFTY 50 (^NSEI) | Auto-Refresh: 30 Min")
 
 # 💡 30-MINUTE SMART CACHE FOR NSE INTRADAY + HISTORICAL DATA
 @st.cache_data(ttl=1800, show_spinner="Fetching NSE 30-Min Intraday Feed...")
@@ -108,7 +108,6 @@ def calculate_rrg_cached(tickers_dict, benchmark, interval, window=14, tail_leng
             jdk_rs_ratio = jdk_rs_ratio.iloc[:-history_offset]
             jdk_rs_momentum = jdk_rs_momentum.iloc[:-history_offset]
             
-        # Time and Date separation formatting for intraday clarity
         if interval == '30m':
             snapshot_date = jdk_rs_ratio.index[-1].strftime('%b %d, %Y | %H:%M')
         else:
@@ -191,26 +190,25 @@ def plot_rrg_labeled(jdk_rs_ratio, jdk_rs_momentum, tickers, title_date):
     )
     return fig
 
-# 🇮🇳 Complete National Stock Exchange (NSE) Sectoral Universe Map
+# 🇮🇳 🛠️ NEW VERIFIED YAHOO FINANCE TICKER MAP FOR NSE SECTORS
 nse_sectors_universe = {
-    'GOVBI.NS': 'Nifty PSU Bank',
     '^NSEBANK': 'Nifty Bank',
-    'CNXIT.NS': 'Nifty IT',
-    'CNXAUTO.NS': 'Nifty Auto',
-    'CNXPHARMA.NS': 'Nifty Pharma',
-    'CNXFMCG.NS': 'Nifty FMCG',
-    'CNXMETAL.NS': 'Nifty Metal',
-    'CNXREALTY.NS': 'Nifty Realty',
-    'CNXENERGY.NS': 'Nifty Energy',
-    'CNXINFRA.NS': 'Nifty Infra',
-    'CNXCOMMODITIES.NS': 'Nifty Commodities',
-    'CNXCONSUMPTION.NS': 'Nifty Consumption',
-    'CNXFINANCE.NS': 'Nifty Financial Services',
-    'CNXMEDIA.NS': 'Nifty Media'
+    'NIFTYIT.NS': 'Nifty IT',
+    'NIFTYAUTO.NS': 'Nifty Auto',
+    'NIFTYPHARMA.NS': 'Nifty Pharma',
+    'NIFTYFMCG.NS': 'Nifty FMCG',
+    'NIFTYMETAL.NS': 'Nifty Metal',
+    'NIFTYREALTY.NS': 'Nifty Realty',
+    'NIFTYENERGY.NS': 'Nifty Energy',
+    'NIFTYINFRA.NS': 'Nifty Infra',
+    'NIFTYCOMDTY.NS': 'Nifty Commodities',
+    'NIFTYCONSR.NS': 'Nifty Consumption',
+    'NIFTYPBDNK.NS': 'Nifty PSU Bank',
+    'NIFTYFIN.NS': 'Nifty Financial Services',
+    'NIFTYMEDIA.NS': 'Nifty Media'
 }
 
-# Benchmark is Nifty 50 Index
-nse_benchmark = '^NSEI'
+nse_benchmark = '^NSEI' # Nifty 50 Index
 
 # Sidebar Controls
 st.sidebar.header("⚙️ NSE Configuration")
@@ -224,7 +222,6 @@ selected_sectors = st.sidebar.multiselect(
 
 tail = st.sidebar.slider("Tail Length (History)", min_value=3, max_value=15, value=5)
 
-# 📅 HISTORICAL SNAPSHOT OFFSET SLIDER
 offset = st.sidebar.slider(
     "⏳ Historical Offset (Shift Backwards)", 
     min_value=0, max_value=7, value=0,
